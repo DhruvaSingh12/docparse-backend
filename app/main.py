@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import os
 import warnings
 from dotenv import load_dotenv
-from app.api.v1 import router as v1_router
+from app.api.medical_bills import router as medical_bills_router
 from app.db import init_db
 from datetime import datetime, timezone
 
@@ -43,7 +43,7 @@ app.add_middleware(
 )
 
 # Include API routes
-app.include_router(v1_router, prefix="/api/v1", tags=["Document Processing"])
+app.include_router(medical_bills_router, prefix="/api/medical-bills", tags=["Medical Bills"])
 
 @app.get("/")
 async def root():

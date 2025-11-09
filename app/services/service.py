@@ -1,7 +1,19 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
+import numpy as np
+import cv2
+import tempfile
+import os
+from enum import Enum
 from .engines import TesseractEngine, PaddleOCREngine
 
 _ocr_service = None
+
+
+class OCREngine(str, Enum):
+    """OCR Engine options"""
+    TESSERACT = "tesseract"
+    PADDLEOCR = "paddleocr"
+
 
 class OCRService:
     def __init__(self):
@@ -29,6 +41,53 @@ class OCRService:
 
     def get_available_engines(self) -> List[str]:
         return [engine.name for engine in self.engines]
+    
+    async def process_image(
+        self, 
+        image: Union[str, np.ndarray], 
+        engine: Optional[OCREngine] = None
+    ) -> Dict[str, Any]:
+        """
+        Process image with OCR (supports both file paths and numpy arrays)
+        
+        Args:
+            image: Image file path or numpy array
+            engine: Specific engine to use (optional)
+        
+        Returns:
+            OCR results dictionary
+        """
+        # If numpy array, save to temp file
+        temp_path = None
+        image_path: str = ""
+        
+        if isinstance(image, np.ndarray):
+            # Create temporary file with delete=False to avoid file locking issues
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                temp_path = temp_file.name
+            
+            # Write image to the temp file (now it's closed, so no lock)
+            cv2.imwrite(temp_path, image)
+            image_path = temp_path
+        else:
+            image_path = image
+        
+        try:
+            # Process with specified or best engine
+            if engine:
+                result = self.process_with_engine(image_path, engine.value)
+            else:
+                result = self.process_with_best_engine(image_path)
+            
+            return result
+        
+        finally:
+            # Clean up temp file
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except Exception:
+                    pass  # Ignore cleanup errors
 
     def process_with_engine(self, image_path: str, engine_name: Optional[str] = None) -> Dict[str, Any]:
         if engine_name:
