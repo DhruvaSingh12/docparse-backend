@@ -1,14 +1,11 @@
 import cv2
 import json
-import numpy as np
 from typing import Dict, Any
 from datetime import datetime
 from sqlmodel import Session
-
 from app.models import MedicalBill, ProcessingJob, DocumentStatus
 from app.ensemble import WBFEnsemble, config as ensemble_config, utils as ensemble_utils
 from app.services.ocr_service import get_ocr_service, OCREngine
-
 
 class MedicalBillProcessor:
     
@@ -25,7 +22,7 @@ class MedicalBillProcessor:
                 confidence_threshold=ensemble_config.CONFIDENCE_THRESHOLD
             )
             self._model_loaded = True
-            print("✓ Ensemble model loaded successfully")
+            print("Ensemble model loaded successfully")
     
     async def process_medical_bill(
         self,
@@ -66,7 +63,7 @@ class MedicalBillProcessor:
                 use_tesseract_fallback
             )
             
-            # Step 4: Update medical bill with extracted data
+            # Step 4: Update medical bill with raw extracted data
             await self._update_medical_bill(
                 medical_bill,
                 detection_result,
@@ -74,13 +71,23 @@ class MedicalBillProcessor:
                 session
             )
             
-            # Step 5: Mark as parsed
+            # Step 5: Apply post-processing (validation, correction, table extraction)
+            from app.post_processing.pipeline import get_post_processing_pipeline
+            post_processor = get_post_processing_pipeline()
+            post_processing_result = await post_processor.process_medical_bill(
+                medical_bill,
+                ocr_result,
+                image_path,
+                session
+            )
+            
+            # Step 6: Mark as parsed
             medical_bill.status = DocumentStatus.PARSED
             medical_bill.processing_timestamp = datetime.utcnow()
             session.add(medical_bill)
             session.commit()
             
-            # Prepare serializable detection summary (exclude numpy arrays)
+            # Prepare serializable detection summary
             detection_summary = {}
             for class_name, details in detection_result['organized'].items():
                 detection_summary[class_name] = {
@@ -97,7 +104,13 @@ class MedicalBillProcessor:
                 "status": medical_bill.status,
                 "detections": len(detection_result['predictions']['boxes']),
                 "detection_summary": detection_summary,
-                "ocr_results": ocr_result
+                "ocr_results": ocr_result,
+                "post_processing": {
+                    "fields_corrected": post_processing_result['fields_corrected'],
+                    "llm_corrections": post_processing_result['llm_corrections'],
+                    "product_items_extracted": post_processing_result['product_items_extracted'],
+                    "errors": post_processing_result['errors']
+                }
             }
             
         except Exception as e:
@@ -171,7 +184,7 @@ class MedicalBillProcessor:
             session.add(job)
             session.commit()
             
-            print(f"✓ Detected {len(predictions['boxes'])} regions")
+            print(f"Detected {len(predictions['boxes'])} regions")
             
             return {
                 "predictions": predictions,
@@ -221,14 +234,13 @@ class MedicalBillProcessor:
             ):
                 print(f"Running OCR on {class_name}...")
                 
-                # Skip product_table for now (as requested)
                 if class_name == 'product_table':
                     ocr_results[class_name] = {
                         "text": None,
                         "confidence": float(score),
                         "bbox": ensemble_utils.bbox_to_json(box),
-                        "skipped": True,
-                        "reason": "Product table processing not implemented yet"
+                        "skipped": False, 
+                        "reason": "Table extraction handled by post-processing"
                     }
                     continue
                 
@@ -286,7 +298,7 @@ class MedicalBillProcessor:
             session.add(job)
             session.commit()
             
-            print(f"✓ OCR completed on {len(ocr_results)} regions")
+            print(f"OCR completed on {len(ocr_results)} regions")
             
             return ocr_results
             
@@ -385,7 +397,7 @@ class MedicalBillProcessor:
         
         session.add(medical_bill)
         session.commit()
-        print(f"✓ Medical bill {medical_bill.id} updated with extracted data")
+        print(f"Medical bill {medical_bill.id} updated with extracted data")
 
 
 # Singleton instance

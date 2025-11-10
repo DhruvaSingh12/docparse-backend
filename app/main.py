@@ -3,20 +3,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 import warnings
+import logging
 from dotenv import load_dotenv
 from app.api.medical_bills import router as medical_bills_router
 from app.db import init_db
 from datetime import datetime, timezone
 
-# Suppress PaddleOCR warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning, module="paddle")
 warnings.filterwarnings("ignore", message=".*ccache.*")
+warnings.filterwarnings("ignore", category=SyntaxWarning, module="paddleocr")
+warnings.filterwarnings("ignore", message=".*invalid escape sequence.*")
+
+logging.getLogger("ultralytics").setLevel(logging.WARNING)
+logging.getLogger("torch").setLevel(logging.WARNING)
+logging.getLogger("torchvision").setLevel(logging.WARNING)
 
 load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events"""
     # Startup
     print("Starting DocParse API...")
     init_db()
