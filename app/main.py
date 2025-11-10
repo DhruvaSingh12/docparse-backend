@@ -26,7 +26,75 @@ async def lifespan(app: FastAPI):
     print("Starting DocParse API...")
     init_db()
     print("Database initialized.")
+    
+    # Eager load all models at startup
+    print("\n" + "="*60)
+    print("LOADING ALL MODELS AT STARTUP...")
+    print("="*60)
+    
+    try:
+        # 1. Load OCR engines
+        print("\n[1/5] Loading OCR Engines...")
+        from app.services.service import get_ocr_service
+        ocr_service = get_ocr_service()
+        print("✓ OCR engines ready (PaddleOCR + Tesseract)")
+        
+        # 2. Load Ensemble Detection Models (YOLO + Faster R-CNN)
+        print("\n[2/5] Loading Ensemble Detection Models...")
+        from app.ensemble import WBFEnsemble, config as ensemble_config
+        ensemble = WBFEnsemble(
+            device=ensemble_config.DEVICE,
+            confidence_threshold=ensemble_config.CONFIDENCE_THRESHOLD
+        )
+        print("✓ Ensemble models loaded (YOLO v11n + Faster R-CNN)")
+        
+        # Store in app state for reuse
+        app.state.ensemble_model = ensemble
+        
+        # 3. Load MedGemma LLM
+        print("\n[3/5] Loading MedGemma LLM...")
+        from app.post_processing.llm_corrector import get_medgemma_corrector
+        llm = get_medgemma_corrector()
+        if llm.is_available():
+            print("✓ MedGemma LLM loaded and ready")
+        else:
+            print("⚠ MedGemma LLM not available (will use fallback methods)")
+        
+        # 4. Load Table Transformer Models
+        print("\n[4/5] Loading Table Transformer Models...")
+        from app.post_processing.table_extractor import get_table_transformer
+        table_transformer = get_table_transformer()
+        table_transformer.load_models()
+        if table_transformer.loaded:
+            print("✓ Table Transformer models loaded")
+        else:
+            print("⚠ Table Transformer models failed to load")
+        
+        # 5. Verify all models
+        print("\n[5/5] Verifying Model Status...")
+        models_status = {
+            "OCR (PaddleOCR + Tesseract)": "✓ Ready",
+            "Ensemble (YOLO + Faster R-CNN)": "✓ Ready",
+            "MedGemma LLM": "✓ Ready" if llm.is_available() else "⚠ Fallback",
+            "Table Transformer": "✓ Ready" if table_transformer.loaded else "⚠ Fallback"
+        }
+        
+        print("\nModel Loading Summary:")
+        for model_name, status in models_status.items():
+            print(f"  {model_name}: {status}")
+        
+        print("\n" + "="*60)
+        print("ALL MODELS LOADED - READY TO PROCESS DOCUMENTS")
+        print("="*60 + "\n")
+        
+    except Exception as e:
+        print(f"\n⚠ Error during model loading: {e}")
+        import traceback
+        traceback.print_exc()
+        print("Server will continue, models will load on first use.\n")
+    
     yield
+    
     # Shutdown
     print("Shutting down DocParse API...")
 

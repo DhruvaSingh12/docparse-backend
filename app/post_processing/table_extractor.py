@@ -345,29 +345,33 @@ Table text:
 {table_text}
 
 Your task:
-1. Identify which columns contain: product name, quantity, pack/pack size, MRP/price, expiry date, and total amount
+1. Identify columns: Comp/Company, Product Description/Name, Qty/Quantity, Pack, Batch No, Exp/Expiry, MRP, and Amount (RIGHTMOST/LAST numeric column)
 2. Extract each data row (skip the header row)
 3. Return ONLY a valid JSON array of product objects
 
 Required output format (return ONLY this JSON, no other text):
 [
   {{
-    "product": "product name here",
+    "product": "full product name from Product Description column",
     "quantity": "quantity value",
-    "pack": "pack size or pack value",
-    "mrp": "MRP or price per unit",
+    "pack": "pack size",
+    "mrp": "MRP per unit price",
     "expiry": "expiry date if available, else null",
-    "total_amount": "total amount for this line"
+    "total_amount": "LAST/RIGHTMOST amount in the row (final payable amount)"
   }}
 ]
 
-Rules:
-- Return ONLY valid JSON array, no explanations
-- Skip header rows
+CRITICAL Rules:
+- Return ONLY valid JSON array, no explanations or additional text
+- Skip header rows completely
+- Product name: Use the FULL text from "Product Description" column, NOT the company code
+- total_amount: MUST be the LAST/RIGHTMOST numeric value in each row (usually the largest amount)
+- total_amount is NOT "Net Rate" or "MRP" - it's the final "Amount" column
+- MRP is the per-unit price, total_amount is the final line total
 - If a field is not found, use null
-- Product name is usually the longest text field
-- Quantity is usually a small number
-- MRP and total_amount are prices
+- Quantity is usually a small number (1-100)
+- Expiry date format: MM-YY or DD-MM-YYYY
+- Pack format: examples "1X1TAB", "1X100GM", "1X30CAP"
 - Expiry date might be in format MM/YY or DD/MM/YYYY
 - If expiry is not found, use null"""
 
