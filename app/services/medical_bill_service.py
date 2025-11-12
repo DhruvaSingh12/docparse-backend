@@ -349,8 +349,8 @@ class MedicalBillProcessor:
             
             # GSTIN
             elif db_field == 'gstin':
-                medical_bill.gstin = text
-                medical_bill.gstin_raw = text
+                medical_bill.gstin = None  # Will be set by post-processing if valid
+                medical_bill.gstin_raw = text[:100] if text else None  # Truncate raw to prevent errors
                 medical_bill.gstin_confidence = ocr_data.get("confidence")
                 medical_bill.gstin_bbox = ocr_data.get("bbox")
             
@@ -363,8 +363,8 @@ class MedicalBillProcessor:
             
             # Mobile Number
             elif db_field == 'mobile_no':
-                medical_bill.mobile_no = text
-                medical_bill.mobile_no_raw = text
+                medical_bill.mobile_no = None  # Will be set by post-processing if valid
+                medical_bill.mobile_no_raw = text[:100] if text else None  # Truncate raw to prevent errors
                 medical_bill.mobile_no_confidence = ocr_data.get("confidence")
                 medical_bill.mobile_no_bbox = ocr_data.get("bbox")
             
